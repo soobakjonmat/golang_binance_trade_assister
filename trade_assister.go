@@ -129,9 +129,11 @@ func closePosition(param tradeVar, client *futures.Client) {
 	if positionAmtFloat < 0 {
 		positionAmtPositive := -positionAmtFloat
 		positionAmtStr = strconv.FormatFloat(positionAmtPositive, 'f', -1, 64)
+		fmt.Printf("Placing a closing order to buy %v %v at %v\n", positionAmtStr, param.cryptoFullname, closingPrice)
 		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
 			Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmtStr).Price(closingPrice).Do(context.Background())
 	} else if positionAmtFloat > 0 {
+		fmt.Printf("Placing a closing order to sell %v %v at %v\n", positionAmtStr, param.cryptoFullname, closingPrice)
 		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
 			Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmtStr).Price(closingPrice).Do(context.Background())
 	}
