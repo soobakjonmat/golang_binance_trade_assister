@@ -18,7 +18,6 @@ import (
 )
 
 const DEFAULT_FIAT_CURRENCY = "USDT"
-const toSecond = 1000000000
 
 type tradeVar struct {
 	cryptoFullname                string
@@ -68,7 +67,7 @@ func SetParams() tradeVar {
 	var oBNPointer *int = &orderBookNum
 
 	var tradeFactor float64
-	fmt.Print("Set trading factor: (Try not to set it over 20) ")
+	fmt.Print("Set trade factor: (Try not to set it over 20) ")
 	fmt.Scanln(&tradeFactor)
 	tradeFactor /= 100
 	var tFPointer *float64 = &tradeFactor
@@ -124,17 +123,17 @@ func closePosition(param tradeVar, client *futures.Client) {
 	closingPrice := orderBook.Asks[*param.pOrderBookNum].Price
 
 	positionRisk, _ := client.NewGetPositionRiskService().Symbol(param.cryptoFullname).Do(context.Background())
-	positionAmt := positionRisk[0].PositionAmt
-	positionAmtFloat, _ := strconv.ParseFloat(positionAmt, 64)
+	positionAmtStr := positionRisk[0].PositionAmt
+	positionAmtFloat, _ := strconv.ParseFloat(positionAmtStr, 64)
 
 	if positionAmtFloat < 0 {
 		positionAmtPositive := -positionAmtFloat
-		positionAmtStr := strconv.FormatFloat(positionAmtPositive, 'f', -1, 64)
+		positionAmtStr = strconv.FormatFloat(positionAmtPositive, 'f', -1, 64)
 		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
 			Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmtStr).Price(closingPrice).Do(context.Background())
 	} else if positionAmtFloat > 0 {
 		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
-			Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmt).Price(closingPrice).Do(context.Background())
+			Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmtStr).Price(closingPrice).Do(context.Background())
 	}
 }
 
@@ -143,7 +142,7 @@ func createTestOrder(param tradeVar, client *binance.Client) {
 	enteringPrice := orderBook.Bids[*param.pOrderBookNum].Price
 	enteringPriceFloat, _, _ := orderBook.Bids[*param.pOrderBookNum].Parse()
 
-	balanceFloat := 100.1
+	var balanceFloat float64 = 0
 	quantity := round((balanceFloat*param.leverage**param.pTradeFactor)/enteringPriceFloat, param.quantityDP)
 	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
 
@@ -164,12 +163,10 @@ func testRuntime(repeatNum int, decimal int, target func(param tradeVar, client 
 		startTime := time.Now()
 		fmt.Printf("Loop %v\n", i)
 		target(param, client)
-		timeNano := (time.Since(startTime) / toSecond)
-		timeFloat := float64(timeNano)
-		timeRounded := round(timeFloat, decimal)
+		timeSecond := float64(time.Since(startTime)) / float64(time.Second)
+		timeRounded := round(timeSecond, decimal)
 		timeSlice = append(timeSlice, timeRounded)
-		fmt.Printf("Time taken: %v\n", timeRounded)
-		time.Sleep(1 * time.Second)
+		fmt.Printf("Time taken: %v\n", timeSecond)
 	}
 	sort.Float64s(timeSlice)
 	var medianTime float64
@@ -206,7 +203,7 @@ func main() {
 	inputScanner := bufio.NewScanner(os.Stdin)
 	var command string
 	for {
-		fmt.Print("Buy(b)/Sell(s)/Close(c)/Set trading factor(tf)/Set closing amount factor(cf)/Set order book number(o)Test runtime(tr) ")
+		fmt.Print("Buy(b)/Sell(s)/Close(c)/Set trade factor(tf)/Set closing amount factor(cf)/Set order book number(o)Test runtime(tr) ")
 		inputScanner.Scan()
 		command = inputScanner.Text()
 		if command == "b" {
@@ -216,21 +213,42 @@ func main() {
 		} else if command == "c" {
 			closePosition(param, client)
 		} else if command == "tf" {
-			fmt.Print("Set trading factor: (Try not to set it over 20) ")
+			fmt.Print("Set trade factor: (Try not to set it over 20) ")
 			inputScanner.Scan()
-			*param.pTradeFactor, _ = strconv.ParseFloat(inputScanner.Text(), 64)
-			*param.pTradeFactor /= 100
+			s, _ := strconv.ParseFloat(inputScanner.Text(), 64)
+			if s > 100 {
+				fmt.Println("Wrong input. Input 1 ~ 100")
+			} else {
+				*param.pTradeFactor, _ = strconv.ParseFloat(inputScanner.Text(), 64)
+				*param.pTradeFactor /= 100
+				fmt.Printf("Trade factor: %v\n", *param.pCloseAmtFactor)
+			}
 		} else if command == "cf" {
 			fmt.Print("Set close amount factor: ")
 			inputScanner.Scan()
-			*param.pCloseAmtFactor, _ = strconv.ParseFloat(inputScanner.Text(), 64)
-			*param.pCloseAmtFactor /= 100
+			s, _ := strconv.ParseFloat(inputScanner.Text(), 64)
+			if s > 100 {
+				fmt.Println("Wrong input. Input 1 ~ 100")
+			} else {
+				*param.pCloseAmtFactor, _ = strconv.ParseFloat(inputScanner.Text(), 64)
+				*param.pCloseAmtFactor /= 100
+				fmt.Printf("Close amount factor: %v\n", *param.pCloseAmtFactor)
+			}
 		} else if command == "o" {
-			fmt.Print("Set order book number: ")
+			fmt.Print("Set bid/ask price order book number: (0 ~ 4) ")
 			inputScanner.Scan()
-			*param.pOrderBookNum, _ = strconv.Atoi(inputScanner.Text())
+			s, _ := strconv.ParseFloat(inputScanner.Text(), 64)
+			if s > 100 {
+				fmt.Println("Wrong input. Input 0 ~ 4")
+			} else {
+				*param.pOrderBookNum, _ = strconv.Atoi(inputScanner.Text())
+				fmt.Printf("Order book number: %v\n", *param.pOrderBookNum)
+			}
 		} else if command == "tr" {
-			testRuntime(5, 5, createTestOrder, param)
+			fmt.Print("Set repeat number: ")
+			inputScanner.Scan()
+			repeatNum, _ := strconv.Atoi(inputScanner.Text())
+			testRuntime(repeatNum, 4, createTestOrder, param)
 		} else {
 			fmt.Println("Wrong command")
 		}
