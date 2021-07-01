@@ -210,20 +210,25 @@ func main() {
 		command = inputScanner.Text()
 		if command == "b" {
 			enterLong(param, client)
+			fmt.Println()
 		} else if command == "s" {
 			enterShort(param, client)
+			fmt.Println()
 		} else if command == "c" {
 			closePosition(param, client)
+			fmt.Println()
 		} else if command == "tf" {
 			fmt.Print("Set trade factor: (Try not to set it over 20) ")
 			inputScanner.Scan()
 			s, _ := strconv.ParseFloat(inputScanner.Text(), 64)
 			if s > 100 {
 				fmt.Println("Wrong input. Input 1 ~ 100")
+				fmt.Println()
 			} else {
 				*param.pTradeFactor, _ = strconv.ParseFloat(inputScanner.Text(), 64)
 				*param.pTradeFactor /= 100
 				fmt.Printf("Trade factor: %v\n", *param.pTradeFactor)
+				fmt.Println()
 			}
 		} else if command == "cf" {
 			fmt.Print("Set close amount factor: ")
@@ -231,10 +236,12 @@ func main() {
 			s, _ := strconv.ParseFloat(inputScanner.Text(), 64)
 			if s > 100 {
 				fmt.Println("Wrong input. Input 1 ~ 100")
+				fmt.Println()
 			} else {
 				*param.pCloseAmtFactor, _ = strconv.ParseFloat(inputScanner.Text(), 64)
 				*param.pCloseAmtFactor /= 100
 				fmt.Printf("Close amount factor: %v\n", *param.pCloseAmtFactor)
+				fmt.Println()
 			}
 		} else if command == "o" {
 			fmt.Print("Set bid/ask price order book number: (0 ~ 4) ")
@@ -242,17 +249,21 @@ func main() {
 			s, _ := strconv.ParseFloat(inputScanner.Text(), 64)
 			if s > 4 {
 				fmt.Println("Wrong input. Input 0 ~ 4")
+				fmt.Println()
 			} else {
 				*param.pOrderBookNum, _ = strconv.Atoi(inputScanner.Text())
 				fmt.Printf("Order book number: %v\n", *param.pOrderBookNum)
+				fmt.Println()
 			}
 		} else if command == "tr" {
 			fmt.Print("Set repeat number: ")
 			inputScanner.Scan()
 			repeatNum, _ := strconv.Atoi(inputScanner.Text())
 			testRuntime(repeatNum, 4, createTestOrder, param)
+			fmt.Println()
 		} else {
 			fmt.Println("Wrong command")
+			fmt.Println()
 		}
 	}
 }
