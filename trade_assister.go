@@ -142,8 +142,8 @@ func createTestOrder(param tradeVar, client *binance.Client) {
 	enteringPrice := orderBook.Bids[*param.pOrderBookNum].Price
 	enteringPriceFloat, _, _ := orderBook.Bids[*param.pOrderBookNum].Parse()
 
-	var balanceFloat float64 = 0
-	quantity := round((balanceFloat*param.leverage**param.pTradeFactor)/enteringPriceFloat, param.quantityDP)
+	var balanceFloat float64 = 20 // Random mimimum balance
+	quantity := round((balanceFloat*param.leverage)/enteringPriceFloat, param.quantityDP)
 	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
 
 	fmt.Println("Placing test order")
@@ -221,7 +221,7 @@ func main() {
 			} else {
 				*param.pTradeFactor, _ = strconv.ParseFloat(inputScanner.Text(), 64)
 				*param.pTradeFactor /= 100
-				fmt.Printf("Trade factor: %v\n", *param.pCloseAmtFactor)
+				fmt.Printf("Trade factor: %v\n", *param.pTradeFactor)
 			}
 		} else if command == "cf" {
 			fmt.Print("Set close amount factor: ")
@@ -238,7 +238,7 @@ func main() {
 			fmt.Print("Set bid/ask price order book number: (0 ~ 4) ")
 			inputScanner.Scan()
 			s, _ := strconv.ParseFloat(inputScanner.Text(), 64)
-			if s > 100 {
+			if s > 4 {
 				fmt.Println("Wrong input. Input 0 ~ 4")
 			} else {
 				*param.pOrderBookNum, _ = strconv.Atoi(inputScanner.Text())
