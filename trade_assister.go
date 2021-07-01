@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -89,8 +90,8 @@ func enterLong(param tradeVar, client *futures.Client) {
 	accountInfo, _ := client.NewGetAccountService().Do(context.Background())
 	balance := accountInfo.TotalWalletBalance
 	balanceFloat, _ := strconv.ParseFloat(balance, 64)
-	quantity := (balanceFloat * param.leverage * *param.pTradeFactor) / enteringPriceFloat
-	quantityStr := strconv.FormatFloat(quantity, 'f', param.quantityDP, 64)
+	quantity := round((balanceFloat*param.leverage**param.pTradeFactor)/enteringPriceFloat, param.quantityDP)
+	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
 
 	fmt.Printf("Placing a long order to buy %v %v at %v\n", quantityStr, param.cryptoFullname, enteringPrice)
 
@@ -107,8 +108,8 @@ func enterShort(param tradeVar, client *futures.Client) {
 	accountInfo, _ := client.NewGetAccountService().Do(context.Background())
 	balance := accountInfo.TotalWalletBalance
 	balanceFloat, _ := strconv.ParseFloat(balance, 64)
-	quantity := (balanceFloat * param.leverage * *param.pTradeFactor) / enteringPriceFloat
-	quantityStr := strconv.FormatFloat(quantity, 'f', param.quantityDP, 64)
+	quantity := round((balanceFloat*param.leverage**param.pTradeFactor)/enteringPriceFloat, param.quantityDP)
+	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
 
 	fmt.Printf("Placing a short order to sell %v %v at %v\n", quantityStr, param.cryptoFullname, enteringPrice)
 
@@ -119,46 +120,66 @@ func enterShort(param tradeVar, client *futures.Client) {
 
 func closePosition(param tradeVar, client *futures.Client) {
 	fmt.Println("Closing position")
+	orderBook, _ := client.NewDepthService().Symbol(param.cryptoFullname).Limit(5).Do(context.Background())
+	closingPrice := orderBook.Asks[*param.pOrderBookNum].Price
+
+	positionRisk, _ := client.NewGetPositionRiskService().Symbol(param.cryptoFullname).Do(context.Background())
+	positionAmt := positionRisk[0].PositionAmt
+	positionAmtFloat, _ := strconv.ParseFloat(positionAmt, 64)
+
+	if positionAmtFloat < 0 {
+		positionAmtPositive := -positionAmtFloat
+		positionAmtStr := strconv.FormatFloat(positionAmtPositive, 'f', -1, 64)
+		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
+			Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmtStr).Price(closingPrice).Do(context.Background())
+	} else if positionAmtFloat > 0 {
+		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
+			Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmt).Price(closingPrice).Do(context.Background())
+	}
 }
 
-func createTestOrder(param tradeVar, client *futures.Client) {
+func createTestOrder(param tradeVar, client *binance.Client) {
 	orderBook, _ := client.NewDepthService().Symbol(param.cryptoFullname).Limit(5).Do(context.Background())
+	enteringPrice := orderBook.Bids[*param.pOrderBookNum].Price
 	enteringPriceFloat, _, _ := orderBook.Bids[*param.pOrderBookNum].Parse()
-	testPriceFloat := enteringPriceFloat / 2
-	testPrice := strconv.FormatFloat(testPriceFloat, 'f', param.priceDP, 64)
 
-	accountInfo, _ := client.NewGetAccountService().Do(context.Background())
-	balance := accountInfo.TotalWalletBalance
-	balanceFloat, _ := strconv.ParseFloat(balance, 64)
-	quantity := (balanceFloat * param.leverage * *param.pTradeFactor) / testPriceFloat
-	quantityStr := strconv.FormatFloat(quantity, 'f', param.quantityDP, 64)
+	balanceFloat := 100.1
+	quantity := round((balanceFloat*param.leverage**param.pTradeFactor)/enteringPriceFloat, param.quantityDP)
+	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
 
-	fmt.Println("Placing a test order. Cancel orders after.")
+	fmt.Println("Placing test order")
 
 	client.NewCreateOrderService().Symbol(param.cryptoFullname).
-		Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(quantityStr).Price(testPrice).Do(context.Background())
+		Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(quantityStr).Price(enteringPrice).Test(context.Background())
 }
 
 func round(num float64, decimal int) float64 {
 	return math.Round(num*math.Pow10(decimal)) / math.Pow10(decimal)
 }
 
-func testRuntime(repeatNum int, decimal int, target func(tradeVar, *futures.Client), param tradeVar, client *futures.Client) {
-	var totalTime float64 = 0
+func testRuntime(repeatNum int, decimal int, target func(param tradeVar, client *binance.Client), param tradeVar) {
+	client := binance.NewClient(credentials.API_KEY, credentials.API_SECRET)
+	var timeSlice []float64
 	for i := 0; i < repeatNum; i++ {
 		startTime := time.Now()
 		fmt.Printf("Loop %v\n", i)
 		target(param, client)
-		timeTakenNano := (time.Since(startTime) / toSecond)
-		timeTakenFloat := float64(timeTakenNano)
-		timeTakenSecond := round(timeTakenFloat, decimal)
-		totalTime += timeTakenSecond
-		fmt.Printf("Time taken: %v\n", timeTakenSecond)
+		timeNano := (time.Since(startTime) / toSecond)
+		timeFloat := float64(timeNano)
+		timeRounded := round(timeFloat, decimal)
+		timeSlice = append(timeSlice, timeRounded)
+		fmt.Printf("Time taken: %v\n", timeRounded)
 		time.Sleep(1 * time.Second)
 	}
-	var averageTime = totalTime / float64(repeatNum)
-	fmt.Printf("Average time: %v\n", averageTime)
-	// make this median time
+	sort.Float64s(timeSlice)
+	var medianTime float64
+	var sliceLength int = len(timeSlice)
+	if sliceLength%2 == 0 {
+		medianTime = (timeSlice[sliceLength/2] + timeSlice[sliceLength/2-1]) / 2
+	} else {
+		medianTime = timeSlice[(sliceLength-1)/2]
+	}
+	fmt.Printf("Median time: %v\n", medianTime)
 }
 
 func extendClient(pClient **futures.Client) {
@@ -209,7 +230,7 @@ func main() {
 			inputScanner.Scan()
 			*param.pOrderBookNum, _ = strconv.Atoi(inputScanner.Text())
 		} else if command == "tr" {
-			testRuntime(5, 5, createTestOrder, param, client)
+			testRuntime(5, 5, createTestOrder, param)
 		} else {
 			fmt.Println("Wrong command")
 		}
