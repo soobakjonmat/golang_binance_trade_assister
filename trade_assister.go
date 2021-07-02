@@ -124,16 +124,17 @@ func closePosition(param tradeVar, client *futures.Client) {
 
 	positionRisk, _ := client.NewGetPositionRiskService().Symbol(param.cryptoFullname).Do(context.Background())
 	positionAmtStr := positionRisk[0].PositionAmt
+	profit := positionRisk[0].UnRealizedProfit
 	positionAmtFloat, _ := strconv.ParseFloat(positionAmtStr, 64)
 
 	if positionAmtFloat < 0 {
 		positionAmtPositive := -positionAmtFloat
 		positionAmtStr = strconv.FormatFloat(positionAmtPositive, 'f', -1, 64)
-		fmt.Printf("Placing a closing order to buy %v %v at %v\n", positionAmtStr, param.cryptoFullname, closingPrice)
+		fmt.Printf("Placing a closing order at %v. Profit: %v", closingPrice, profit)
 		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
 			Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmtStr).Price(closingPrice).Do(context.Background())
 	} else if positionAmtFloat > 0 {
-		fmt.Printf("Placing a closing order to sell %v %v at %v\n", positionAmtStr, param.cryptoFullname, closingPrice)
+		fmt.Printf("Placing a closing order at %v. Profit: %v", closingPrice, profit)
 		client.NewCreateOrderService().Symbol(param.cryptoFullname).ReduceOnly(true).
 			Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(positionAmtStr).Price(closingPrice).Do(context.Background())
 	}
@@ -155,7 +156,8 @@ func createTestOrder(param tradeVar, client *binance.Client) {
 }
 
 func round(num float64, decimal int) float64 {
-	return math.Round(num*math.Pow10(decimal)) / math.Pow10(decimal)
+	multiplier := math.Pow10(decimal)
+	return math.Round(num*multiplier) / multiplier
 }
 
 func testRuntime(repeatNum int, decimal int, target func(param tradeVar, client *binance.Client), param tradeVar) {
