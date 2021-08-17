@@ -3,11 +3,12 @@ package shared_functions
 import (
 	"context"
 	"fmt"
-	"github.com/adshao/go-binance/v2"
 	"math"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/adshao/go-binance/v2"
 )
 
 func Round(num float64, precision int) float64 {
