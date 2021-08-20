@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"golang_binance_trade_assister/credentials"
 	"golang_binance_trade_assister/shared_functions"
 	"log"
 	"math"
-
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,8 @@ import (
 )
 
 const (
-	DEFAULT_FIAT_CURRENCY = "BUSD"
+	textFilePath  = "/Users/Isac/Desktop/Programming_stuff/DEFAULT_FIAT_CURRENCY.txt"
+	excelFilePath = "/Users/Isac/Desktop/Programming_stuff/Trade Record.xlsx"
 
 	BG_COLOR    = 0x201A18
 	LONG_COLOR  = 0x77C002
@@ -30,6 +32,8 @@ const (
 )
 
 var (
+	DEFAULT_FIAT_CURRENCY = ""
+
 	cryptoFullname string = ""
 	quantityDP     int
 	orderBookIdx   int = 0
@@ -214,7 +218,10 @@ func initialize() {
 		log.Panicln("Invalid Symbol")
 	}
 
-	accountInfo, _ := client.NewGetAccountService().Do(context.Background())
+	accountInfo, err := client.NewGetAccountService().Do(context.Background())
+	if err != nil {
+		log.Panicln(err)
+	}
 	for _, item := range accountInfo.Positions {
 		if item.Symbol == cryptoFullname {
 			leverage, _ = strconv.ParseFloat(item.Leverage, 64)
@@ -238,11 +245,11 @@ func initialize() {
 	positionLabel.SetX(window.InnerWidth()/2 - positionLabel.Width()/2)
 	positionLabel.SetAlignment(wui.AlignCenter)
 
-	marginInputLabel = createNewLabel(BINANCE_FONT_BIG, 180, HEIGHT_BIG, "Margin Input: nil", 0, 102)
+	marginInputLabel = createNewLabel(BINANCE_FONT_BIG, 240, HEIGHT_BIG, "Margin Input: nil", 0, 102)
 	marginInputLabel.SetX(window.InnerWidth()/2 - marginInputLabel.Width()/2)
 	marginInputLabel.SetAlignment(wui.AlignCenter)
 
-	profitLabel = createNewLabel(BINANCE_FONT_BIG, 180, HEIGHT_BIG, "Profit: nil", 0, 130)
+	profitLabel = createNewLabel(BINANCE_FONT_BIG, 240, HEIGHT_BIG, "Profit: nil", 0, 130)
 	profitLabel.SetX(window.InnerWidth()/2 - profitLabel.Width()/2)
 	profitLabel.SetAlignment(wui.AlignCenter)
 
@@ -344,10 +351,15 @@ func updateInfo() {
 }
 
 func main() {
+	file, _ := os.Open(textFilePath)
+	scanner := bufio.NewScanner(file)
+	scanner.Scan()
+	DEFAULT_FIAT_CURRENCY = scanner.Text()
+
 	client = binance.NewFuturesClient(credentials.API_KEY, credentials.SECRET_KEY)
 	go updateClient()
 
-	sheet, _ := excelize.OpenFile("/Users/Isac/Desktop/Programming_stuff/Trade Record.xlsx")
+	sheet, _ := excelize.OpenFile(excelFilePath)
 	cols, _ := sheet.GetCols("Balance Record")
 	targetIndex := 0
 	for idx, rowCell := range cols[0] {

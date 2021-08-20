@@ -6,8 +6,6 @@ This application is an assister. Not to be used alone. Use with binance.com or b
 ## Instruction
 An input field will appear when you start the app. Enter the cryptocurrency name without the name of the fiat currency (e.g. enter btc to trade BTCUSDT).
 
-To change the default fiat currency, open 'trade_assister.py' and assign different fiat currency string to constant DEFAULT_FIAT_CURRENCY
-
 ### Commands
 - b - Buy/Long
 - s - Sell/Short
