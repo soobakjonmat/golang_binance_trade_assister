@@ -78,47 +78,53 @@ var (
 )
 
 func enterLong() {
-	accountInfo, _ := client.NewGetAccountService().Do(context.Background())
+	accountInfo, err := client.NewGetAccountService().Do(context.Background())
+	handleError(err)
 	balance := accountInfo.Assets[fiatIndex].WalletBalance
-	balanceFloat, _ := strconv.ParseFloat(balance, 64)
+	balanceFloat := stringToFloat(balance)
 
-	orderBook, _ := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+	orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+	handleError(err)
 	enteringPrice := orderBook.Bids[orderBookIdx].Price
 	enteringPriceFloat, _, _ := orderBook.Bids[orderBookIdx].Parse()
 
 	quantity := shared_functions.Round((balanceFloat*leverage*tradeFactor)/enteringPriceFloat, quantityDP)
-	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
+	quantityStr := floatToString(quantity)
 
 	client.NewCreateOrderService().Symbol(cryptoFullname).
 		Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(quantityStr).Price(enteringPrice).Do(context.Background())
 }
 
 func enterShort() {
-	accountInfo, _ := client.NewGetAccountService().Do(context.Background())
+	accountInfo, err := client.NewGetAccountService().Do(context.Background())
+	handleError(err)
 	balance := accountInfo.Assets[fiatIndex].WalletBalance
-	balanceFloat, _ := strconv.ParseFloat(balance, 64)
+	balanceFloat := stringToFloat(balance)
 
-	orderBook, _ := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+	orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+	handleError(err)
 	enteringPrice := orderBook.Asks[orderBookIdx].Price
 	enteringPriceFloat, _, _ := orderBook.Asks[orderBookIdx].Parse()
 
 	quantity := shared_functions.Round((balanceFloat*leverage*tradeFactor)/enteringPriceFloat, quantityDP)
-	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
+	quantityStr := floatToString(quantity)
 
 	client.NewCreateOrderService().Symbol(cryptoFullname).
 		Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(quantityStr).Price(enteringPrice).Do(context.Background())
 }
 
 func closePosition() {
-	positionRisk, _ := client.NewGetPositionRiskService().Symbol(cryptoFullname).Do(context.Background())
+	positionRisk, err := client.NewGetPositionRiskService().Symbol(cryptoFullname).Do(context.Background())
+	handleError(err)
 	positionAmtStr := positionRisk[0].PositionAmt
-	positionAmtFloat, _ := strconv.ParseFloat(positionAmtStr, 64)
+	positionAmtFloat := stringToFloat(positionAmtStr)
 
-	orderBook, _ := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+	orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+	handleError(err)
 	closingPrice := orderBook.Asks[orderBookIdx].Price
 
 	quantity := math.Abs(shared_functions.Round(positionAmtFloat*closingFactor, quantityDP))
-	quantityStr := strconv.FormatFloat(quantity, 'f', -1, 64)
+	quantityStr := floatToString(quantity)
 
 	if positionAmtFloat > 0 {
 		client.NewCreateOrderService().Symbol(cryptoFullname).Side("SELL").Type("LIMIT").TimeInForce("GTC").
@@ -152,17 +158,17 @@ func runCommand() {
 		}
 	}
 	if tradeFactorEntry.HasFocus() {
-		num, _ := strconv.ParseFloat(tradeFactorEntry.Text(), 64)
+		num := stringToFloat(tradeFactorEntry.Text())
 		tradeFactorEntry.SetText("")
 		tradeFactor = num / 100
-		tradeFactorStr := strconv.FormatFloat(tradeFactor, 'f', -1, 64)
+		tradeFactorStr := floatToString(tradeFactor)
 		tradeFactorDisplay.SetText(tradeFactorStr)
 	}
 	if closingFactorEntry.HasFocus() {
-		num, _ := strconv.ParseFloat(tradeFactorEntry.Text(), 64)
+		num := stringToFloat(closingFactorEntry.Text())
 		closingFactorEntry.SetText("")
 		closingFactor = num / 100
-		closingFactorStr := strconv.FormatFloat(closingFactor, 'f', -1, 64)
+		closingFactorStr := floatToString(closingFactor)
 		closingFactorDisplay.SetText(closingFactorStr)
 	}
 	if orderBookIdxEntry.HasFocus() {
@@ -170,7 +176,7 @@ func runCommand() {
 		orderBookIdxEntry.SetText("")
 		orderBookIdx = num
 		orderBookIdxStr := strconv.Itoa(orderBookIdx)
-		tradeFactorDisplay.SetText(orderBookIdxStr)
+		orderBookIdxDisplay.SetText(orderBookIdxStr)
 	}
 }
 
@@ -224,7 +230,7 @@ func initialize() {
 	}
 	for _, item := range accountInfo.Positions {
 		if item.Symbol == cryptoFullname {
-			leverage, _ = strconv.ParseFloat(item.Leverage, 64)
+			leverage = stringToFloat(item.Leverage)
 		}
 	}
 	for idx, item := range accountInfo.Assets {
@@ -261,7 +267,7 @@ func initialize() {
 	tradeFactorYPos := 160
 	tradeFactorLabel = createNewLabel(BINANCE_FONT_TINY, 70, HEIGHT_TINY, "Trade Factor", labelXPos, tradeFactorYPos)
 	tradeFactorLabel.SetAlignment(wui.AlignCenter)
-	tradeFactorStr := strconv.FormatFloat(tradeFactor, 'f', -1, 64)
+	tradeFactorStr := floatToString(tradeFactor)
 	tradeFactorDisplay = createNewLabel(BINANCE_FONT_TINY, displayEntryWidth, HEIGHT_TINY, tradeFactorStr, displayXPos, tradeFactorYPos)
 	tradeFactorDisplay.SetAlignment(wui.AlignCenter)
 	tradeFactorEntry = createNewEditLine(BINANCE_FONT_TINY, displayEntryWidth, HEIGHT_TINY, entryXPos, tradeFactorYPos)
@@ -269,7 +275,7 @@ func initialize() {
 	closingFactorYPos := 180
 	closingFactorLabel = createNewLabel(BINANCE_FONT_TINY, 80, HEIGHT_TINY, "Closing Factor", labelXPos, closingFactorYPos)
 	closingFactorLabel.SetAlignment(wui.AlignCenter)
-	closingFactorStr := strconv.FormatFloat(closingFactor, 'f', -1, 64)
+	closingFactorStr := floatToString(closingFactor)
 	closingFactorDisplay = createNewLabel(BINANCE_FONT_TINY, displayEntryWidth, HEIGHT_TINY, closingFactorStr, displayXPos, closingFactorYPos)
 	closingFactorDisplay.SetAlignment(wui.AlignCenter)
 	closingFactorEntry = createNewEditLine(BINANCE_FONT_TINY, displayEntryWidth, HEIGHT_TINY, entryXPos, closingFactorYPos)
@@ -296,19 +302,21 @@ func initialize() {
 func updateInfo() {
 	for {
 		// Balance
-		accountInfo, _ := client.NewGetAccountService().Do(context.Background())
+		accountInfo, err := client.NewGetAccountService().Do(context.Background())
+		handleError(err)
 		assetInfo := accountInfo.Assets[fiatIndex]
 		totalbalanceStr := assetInfo.WalletBalance
-		totalBalance, _ := strconv.ParseFloat(totalbalanceStr, 64)
+		totalBalance := stringToFloat(totalbalanceStr)
 		totalBalance = shared_functions.Round(totalBalance, 2)
 		// Overall profit
 		overallProfit := shared_functions.Round((totalBalance/balanceBefore-1)*100, 2)
-		overallProfitStr := strconv.FormatFloat(overallProfit, 'f', -1, 64)
+		overallProfitStr := floatToString(overallProfit)
 		overallProfitLabel.SetText("Overall Profit: " + overallProfitStr + "%")
 		// Position info
-		positionInfo, _ := client.NewGetPositionRiskService().Symbol(cryptoFullname).Do(context.Background())
+		positionInfo, err := client.NewGetPositionRiskService().Symbol(cryptoFullname).Do(context.Background())
+		handleError(err)
 		positionAmtStr := positionInfo[0].PositionAmt
-		positionAmt, _ := strconv.ParseFloat(positionAmtStr, 64)
+		positionAmt := stringToFloat(positionAmtStr)
 		if positionAmt == 0 {
 			positionLabel.SetText("Not in Position")
 			marginInputLabel.SetText("Margin Input: nil")
@@ -322,22 +330,22 @@ func updateInfo() {
 			}
 			// Margin input label
 			inputMarginStr := assetInfo.InitialMargin
-			inputMargin, _ := strconv.ParseFloat(inputMarginStr, 64)
+			inputMargin := stringToFloat(inputMarginStr)
 			marginInputRatio := inputMargin / totalBalance
 			// Preventing rounding error
 			if marginInputRatio > 1 {
 				marginInputRatio = 1
 			}
 			marginInputPercentage := shared_functions.Round(marginInputRatio*100, 2)
-			marginInputPercentageStr := strconv.FormatFloat(marginInputPercentage, 'f', -1, 64)
+			marginInputPercentageStr := floatToString(marginInputPercentage)
 			marginInputLabel.SetText("Margin Input: " + marginInputPercentageStr + "%")
 			// profit label
 			profitStr := positionInfo[0].UnRealizedProfit
-			profit, _ := strconv.ParseFloat(profitStr, 64)
+			profit := stringToFloat(profitStr)
 			profitRounded := shared_functions.Round(math.Abs(profit), 2)
-			profitRoundedStr := strconv.FormatFloat(profitRounded, 'f', -1, 64)
+			profitRoundedStr := floatToString(profitRounded)
 			profitPercentage := shared_functions.Round(profit*100/totalBalance, 2)
-			profitPercentageStr := strconv.FormatFloat(profitPercentage, 'f', -1, 64)
+			profitPercentageStr := floatToString(profitPercentage)
 			if profit > 0 {
 				profitLabel.SetText("Profit: $" + profitRoundedStr + " (" + profitPercentageStr + "%)")
 			} else if profit < 0 {
@@ -348,6 +356,22 @@ func updateInfo() {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+func handleError(err error) {
+	if err != nil {
+		log.Panicln(err)
+	}
+}
+
+func stringToFloat(str string) float64 {
+	num, _ := strconv.ParseFloat(str, 64)
+	return num
+}
+
+func floatToString(num float64) string {
+	str := strconv.FormatFloat(num, 'f', -1, 64)
+	return str
 }
 
 func main() {
@@ -370,7 +394,7 @@ func main() {
 	}
 	targetIndexStr := strconv.Itoa(targetIndex)
 	value, _ := sheet.GetCellValue("Balance Record", "B"+targetIndexStr)
-	balanceBefore, _ = strconv.ParseFloat(value, 64)
+	balanceBefore = stringToFloat(value)
 
 	window = wui.NewWindow()
 	window.SetTitle("Trade Assister")
