@@ -43,8 +43,11 @@ var (
 	tradeFactor   float64 = 0.05
 	closingFactor float64 = 1
 
-	specificAmt    string = ""
-	useTradeFactor bool   = true
+	useTradeFactor   bool = true
+	useClosingFactor bool = true
+
+	tradeAmt   string
+	closingAmt string
 
 	fiatIndex int
 
@@ -66,9 +69,11 @@ var (
 	profitLabel        *wui.Label
 	marginInputLabel   *wui.Label
 
+	tradeFactorLabel   *wui.Label
 	tradeFactorDisplay *wui.Label
 	tradeFactorEntry   *wui.EditLine
 
+	closingFactorLabel   *wui.Label
 	closingFactorDisplay *wui.Label
 	closingFactorEntry   *wui.EditLine
 
@@ -78,8 +83,6 @@ var (
 	orderBookIdxEntry   *wui.EditLine
 
 	commandEntry *wui.EditLine
-
-	specificAmtOrderEntry *wui.EditLine
 
 	SYMBOL_FONT, _        = wui.NewFont(wui.FontDesc{Name: "IBM Plex Sans", Height: 31})
 	BINANCE_FONT_BIG, _   = wui.NewFont(wui.FontDesc{Name: "IBM Plex Sans", Height: 26})
@@ -110,7 +113,7 @@ func enterLong() {
 		enteringPrice := orderBook.Bids[orderBookIdx].Price
 
 		client.NewCreateOrderService().Symbol(cryptoFullname).
-			Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(specificAmt).Price(enteringPrice).Do(context.Background())
+			Side("BUY").Type("LIMIT").TimeInForce("GTC").Quantity(tradeAmt).Price(enteringPrice).Do(context.Background())
 	}
 }
 
@@ -137,12 +140,12 @@ func enterShort() {
 		enteringPrice := orderBook.Asks[orderBookIdx].Price
 
 		client.NewCreateOrderService().Symbol(cryptoFullname).
-			Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(specificAmt).Price(enteringPrice).Do(context.Background())
+			Side("SELL").Type("LIMIT").TimeInForce("GTC").Quantity(tradeAmt).Price(enteringPrice).Do(context.Background())
 	}
 }
 
 func closePosition() {
-	if useTradeFactor {
+	if useClosingFactor {
 		positionRisk, err := client.NewGetPositionRiskService().Symbol(cryptoFullname).Do(context.Background())
 		handleError(err)
 		positionAmtFloat := stringToFloat(positionRisk[0].PositionAmt)
@@ -173,11 +176,11 @@ func closePosition() {
 		if positionAmtFloat > 0 {
 			closingPrice := orderBook.Asks[orderBookIdx].Price
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("SELL").Type("LIMIT").TimeInForce("GTC").
-				Quantity(specificAmt).Price(closingPrice).Do(context.Background())
+				Quantity(closingAmt).Price(closingPrice).Do(context.Background())
 		} else {
 			closingPrice := orderBook.Bids[orderBookIdx].Price
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("BUY").Type("LIMIT").TimeInForce("GTC").
-				Quantity(specificAmt).Price(closingPrice).Do(context.Background())
+				Quantity(closingAmt).Price(closingPrice).Do(context.Background())
 		}
 	}
 }
@@ -204,23 +207,35 @@ func runCommand() {
 			cancelOrder()
 		}
 	} else if tradeFactorEntry.HasFocus() && tradeFactorEntry.Text() != "" {
-		useTradeFactor = true
 		tradeFactor = stringToFloat(tradeFactorEntry.Text())
-		tradeFactorDisplay.SetText(tradeFactorEntry.Text())
+		tradeAmt = tradeFactorEntry.Text()
+		if tradeFactor <= 1 {
+			useTradeFactor = true
+			tradeFactorLabel.SetText("Trade Factor")
+			tradeFactorDisplay.SetText(tradeFactorEntry.Text())
+		} else {
+			tradeFactorLabel.SetText("Trade Amount")
+			tradeFactorDisplay.SetText(tradeFactorEntry.Text() + " " + cryptoName)
+			useTradeFactor = false
+		}
 		tradeFactorEntry.SetText("")
 	} else if closingFactorEntry.HasFocus() && closingFactorEntry.Text() != "" {
 		closingFactor = stringToFloat(closingFactorEntry.Text())
-		closingFactorDisplay.SetText(closingFactorEntry.Text())
+		closingAmt = closingFactorDisplay.Text()
+		if closingFactor <= 1 {
+			useClosingFactor = true
+			closingFactorLabel.SetText("Closing Factor")
+			closingFactorDisplay.SetText(closingFactorEntry.Text())
+		} else {
+			closingFactorLabel.SetText("Closing Amount")
+			closingFactorDisplay.SetText(closingFactorEntry.Text() + " " + cryptoName)
+			useClosingFactor = false
+		}
 		closingFactorEntry.SetText("")
 	} else if orderBookIdxEntry.HasFocus() && orderBookIdxEntry.Text() != "" {
 		orderBookIdx, _ = strconv.Atoi(orderBookIdxEntry.Text())
 		orderBookIdxDisplay.SetText(orderBookIdxEntry.Text())
 		orderBookIdxEntry.SetText("")
-	} else if specificAmtOrderEntry.HasFocus() && specificAmtOrderEntry.Text() != "" {
-		useTradeFactor = false
-		specificAmt = specificAmtOrderEntry.Text()
-		tradeFactorDisplay.SetText(specificAmtOrderEntry.Text() + " " + cryptoName)
-		specificAmtOrderEntry.SetText("")
 	}
 }
 
@@ -248,6 +263,17 @@ func createNewEditLine(xPos int, yPos int, width int, height int, font *wui.Font
 	newEditLine.SetFont(font)
 	window.Add(newEditLine)
 	return newEditLine
+}
+
+func getCenterXPos(target ...interface{}) int {
+	label, isLabel := target[0].(*wui.Label)
+	editLine, isEditLine := target[0].(*wui.EditLine)
+	if isLabel {
+		return (window.InnerWidth() - label.Width()) / 2
+	} else if isEditLine {
+		return (window.InnerWidth() - editLine.Width()) / 2
+	}
+	return 0
 }
 
 func initialize() {
@@ -282,14 +308,14 @@ func initialize() {
 
 	symbolLabel = createNewLabel(cryptoFullname, 0, 0, 130, 33, SYMBOL_FONT)
 	symbolLabel.SetAlignment(wui.AlignCenter)
-	symbolLabel.SetX(window.InnerWidth()/2 - symbolLabel.Width()/2)
+	symbolLabel.SetX((window.InnerWidth() - symbolLabel.Width()) / 2)
 
 	overallProfitLabel = createNewLabel("Overall Profit: 0.00%", 0, 38, 200, HEIGHT_BIG, BINANCE_FONT_BIG)
-	overallProfitLabel.SetX(window.InnerWidth()/2 - overallProfitLabel.Width()/2)
+	overallProfitLabel.SetX((window.InnerWidth() - overallProfitLabel.Width()) / 2)
 	overallProfitLabel.SetAlignment(wui.AlignCenter)
 
 	positionLabel = createNewLabel("Not in Position", 0, 74, 180, HEIGHT_BIG, BINANCE_FONT_BIG)
-	positionLabel.SetX(window.InnerWidth()/2 - positionLabel.Width()/2)
+	positionLabel.SetX((window.InnerWidth() - positionLabel.Width()) / 2)
 	positionLabel.SetAlignment(wui.AlignCenter)
 
 	marginInputLabel = createNewLabel("Margin Input: nil", 0, 102, 240, HEIGHT_BIG, BINANCE_FONT_BIG)
@@ -301,20 +327,21 @@ func initialize() {
 	profitLabel.SetAlignment(wui.AlignCenter)
 
 	labelXPos := 10
-	displayEntryWidth := 30
-	displayXPos := 164
+	labelWidth := 95
+	displayEntryWidth := 70
+	displayXPos := 124
 	entryXPos := 205
 
 	tradeFactorYPos := 160
-	tradeFactorLabel := createNewLabel("Trade Factor", labelXPos, tradeFactorYPos, 70, HEIGHT_TINY, BINANCE_FONT_TINY)
+	tradeFactorLabel = createNewLabel("Trade Factor", labelXPos, tradeFactorYPos, labelWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 	tradeFactorLabel.SetAlignment(wui.AlignCenter)
 	tradeFactorStr := floatToString(tradeFactor)
-	tradeFactorDisplay = createNewLabel(tradeFactorStr, displayXPos-40, tradeFactorYPos, displayEntryWidth+40, HEIGHT_TINY, BINANCE_FONT_TINY)
+	tradeFactorDisplay = createNewLabel(tradeFactorStr, displayXPos, tradeFactorYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 	tradeFactorDisplay.SetAlignment(wui.AlignCenter)
 	tradeFactorEntry = createNewEditLine(entryXPos, tradeFactorYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 
 	closingFactorYPos := 180
-	closingFactorLabel := createNewLabel("Closing Factor", labelXPos, closingFactorYPos, 80, HEIGHT_TINY, BINANCE_FONT_TINY)
+	closingFactorLabel = createNewLabel("Closing Factor", labelXPos, closingFactorYPos, labelWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 	closingFactorLabel.SetAlignment(wui.AlignCenter)
 	closingFactorStr := floatToString(closingFactor)
 	closingFactorDisplay = createNewLabel(closingFactorStr, displayXPos, closingFactorYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
@@ -322,7 +349,7 @@ func initialize() {
 	closingFactorEntry = createNewEditLine(entryXPos, closingFactorYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 
 	orderBookIdxYPos := 200
-	orderBookIdxLabel := createNewLabel("Order Book Index", labelXPos, orderBookIdxYPos, 95, HEIGHT_TINY, BINANCE_FONT_TINY)
+	orderBookIdxLabel := createNewLabel("Order Book Index", labelXPos, orderBookIdxYPos, labelWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 	orderBookIdxLabel.SetAlignment(wui.AlignCenter)
 	orderBookIdxStr := strconv.Itoa(orderBookIdx)
 	orderBookIdxDisplay = createNewLabel(orderBookIdxStr, displayXPos, orderBookIdxYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
@@ -330,13 +357,13 @@ func initialize() {
 	orderBookIdxEntry = createNewEditLine(entryXPos, orderBookIdxYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 
 	commandYPos := 225
-	commandLabel := createNewLabel("Command:", 10, commandYPos, 90, HEIGHT_SMALL, BINANCE_FONT_SMALL)
+	commandLabel := createNewLabel("Command:", 0, commandYPos, 90, HEIGHT_SMALL, BINANCE_FONT_SMALL)
+	commandLabel.SetX((window.InnerWidth() - commandLabel.Width()) / 2)
 	commandLabel.SetAlignment(wui.AlignCenter)
-	commandEntry = createNewEditLine(20, commandYPos+27, 70, HEIGHT_SMALL, BINANCE_FONT_SMALL)
+	commandEntry = createNewEditLine(0, commandYPos+27, 70, HEIGHT_SMALL, BINANCE_FONT_SMALL)
+	commandEntry.SetX(getCenterXPos(commandEntry))
 
-	specificAmtLabel := createNewLabel("Specific Amount:", 130, commandYPos, 110, HEIGHT_SMALL, BINANCE_FONT_SMALL)
-	specificAmtLabel.SetAlignment(wui.AlignCenter)
-	specificAmtOrderEntry = createNewEditLine(145, commandYPos+27, 70, HEIGHT_SMALL, BINANCE_FONT_SMALL)
+	isInitialized = true
 
 	window.SetShortcut(runCommand, wui.KeyReturn)
 }
@@ -427,10 +454,11 @@ func floatToString(num float64) string {
 
 func startUpdateInfo() {
 	for {
-		time.Sleep(2 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 		if isInitialized {
 			fmt.Println("Starting updating info")
 			go sendNewService()
+			time.Sleep(1 * time.Second)
 			go updateInfo()
 			break
 		}
@@ -471,11 +499,11 @@ func main() {
 	window.SetIcon(icon)
 
 	instruction := createNewLabel("Enter Crypto Name:", 0, 20, 160, HEIGHT_SMALL, BINANCE_FONT_SMALL)
-	instruction.SetX(window.InnerWidth()/2 - instruction.Width()/2)
+	instruction.SetX((window.InnerWidth() - instruction.Width()) / 2)
 	instruction.SetAlignment(wui.AlignCenter)
 
 	cryptoNameEntry := createNewEditLine(0, 60, 90, HEIGHT_SMALL, BINANCE_FONT_SMALL)
-	cryptoNameEntry.SetX(window.InnerWidth()/2 - cryptoNameEntry.Width()/2)
+	cryptoNameEntry.SetX((window.InnerWidth() - cryptoNameEntry.Width()) / 2)
 
 	window.SetShortcut(func() {
 		if cryptoNameEntry.HasFocus() {
