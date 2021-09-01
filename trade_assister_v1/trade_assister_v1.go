@@ -20,10 +20,6 @@ import (
 )
 
 const (
-	textFilePath  = "/Users/Isac/Desktop/Programming_stuff/DEFAULT_FIAT_CURRENCY.txt"
-	excelFilePath = "/Users/Isac/Desktop/Programming_stuff/Trade Record.xlsx"
-	iconFilePath  = "/Users/Isac/Desktop/Programming_stuff/golang_binance_trade_assister/gopher.ico"
-
 	HEIGHT_BIG   = 27
 	HEIGHT_SMALL = 23
 	HEIGHT_TINY  = 18
@@ -442,7 +438,7 @@ func startUpdateInfo() {
 }
 
 func main() {
-	file, _ := os.Open(textFilePath)
+	file, _ := os.Open(credentials.TextFilePath)
 	scanner := bufio.NewScanner(file)
 	scanner.Scan()
 	DEFAULT_FIAT_CURRENCY = scanner.Text()
@@ -452,8 +448,8 @@ func main() {
 
 	go startUpdateInfo()
 
-	sheet, _ := excelize.OpenFile(excelFilePath)
-	cols, _ := sheet.GetCols("Balance Record")
+	sheet, _ := excelize.OpenFile(credentials.ExcelFilePath)
+	cols, _ := sheet.GetCols(credentials.SheetName)
 	targetIndex := 0
 	for idx, rowCell := range cols[0] {
 		if rowCell == "" {
@@ -462,7 +458,7 @@ func main() {
 		}
 	}
 	targetIndexStr := strconv.Itoa(targetIndex)
-	value, _ := sheet.GetCellValue("Balance Record", "B"+targetIndexStr)
+	value, _ := sheet.GetCellValue(credentials.SheetName, "B"+targetIndexStr)
 	balanceBefore = stringToFloat(value)
 
 	window = wui.NewWindow()
@@ -471,7 +467,7 @@ func main() {
 	window.SetResizable(false)
 	window.SetSize(260, 140)
 	window.SetBackground(wui.Color(BG_COLOR_24_BGR))
-	icon, _ := wui.NewIconFromFile(iconFilePath)
+	icon, _ := wui.NewIconFromFile(credentials.IconFilePath)
 	window.SetIcon(icon)
 
 	instruction := createNewLabel("Enter Crypto Name:", 0, 20, 160, HEIGHT_SMALL, BINANCE_FONT_SMALL)
