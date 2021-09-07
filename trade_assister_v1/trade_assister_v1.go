@@ -79,7 +79,8 @@ var (
 	// Bid: Buy
 	// Ask: Sell
 	orderBookIdxDisplay *wui.Label
-	orderBookIdxEntry   *wui.EditLine
+	orderBookLeftBtn    *wui.Button
+	orderBookRightBtn   *wui.Button
 
 	commandEntry       *wui.EditLine
 	specificPriceLabel *wui.Label
@@ -254,10 +255,6 @@ func runCommand() {
 			closingFactorDisplay.SetText(closingFactorEntry.Text() + " " + cryptoName)
 		}
 		closingFactorEntry.SetText("")
-	} else if orderBookIdxEntry.HasFocus() && orderBookIdxEntry.Text() != "" {
-		orderBookIdx, _ = strconv.Atoi(orderBookIdxEntry.Text())
-		orderBookIdxDisplay.SetText(orderBookIdxEntry.Text())
-		orderBookIdxEntry.SetText("")
 	} else if specificPriceEntry.HasFocus() && specificPriceEntry.Text() != "" {
 		if specificPriceEntry.Text() == "re" {
 			useSpecificPrice = false
@@ -280,17 +277,27 @@ func updateClient() {
 func createNewLabel(text string, xPos int, yPos int, width int, height int, font *wui.Font) *wui.Label {
 	newLabel := wui.NewLabel()
 	newLabel.SetText(text)
-	newLabel.SetSize(width, height)
 	newLabel.SetPosition(xPos, yPos)
+	newLabel.SetSize(width, height)
 	newLabel.SetFont(font)
 	window.Add(newLabel)
 	return newLabel
 }
 
+func createNewButton(text string, xPos int, yPos int, width int, height int, font *wui.Font) *wui.Button {
+	newButton := wui.NewButton()
+	newButton.SetText(text)
+	newButton.SetPosition(xPos, yPos)
+	newButton.SetSize(width, height)
+	newButton.SetFont(font)
+	window.Add(newButton)
+	return newButton
+}
+
 func createNewEditLine(xPos int, yPos int, width int, height int, font *wui.Font) *wui.EditLine {
 	newEditLine := wui.NewEditLine()
-	newEditLine.SetSize(width, height)
 	newEditLine.SetPosition(xPos, yPos)
+	newEditLine.SetSize(width, height)
 	newEditLine.SetFont(font)
 	window.Add(newEditLine)
 	return newEditLine
@@ -389,9 +396,23 @@ func initialize() {
 	orderBookIdxLabel := createNewLabel("Order Book Index", labelXPos, orderBookIdxYPos, labelWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 	orderBookIdxLabel.SetAlignment(wui.AlignCenter)
 	orderBookIdxStr := strconv.Itoa(orderBookIdx)
-	orderBookIdxDisplay = createNewLabel(orderBookIdxStr, displayXPos, orderBookIdxYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
+	orderBookIdxDisplay = createNewLabel(orderBookIdxStr, entryXPos-40, orderBookIdxYPos, displayEntryWidth-30, HEIGHT_TINY, BINANCE_FONT_TINY)
 	orderBookIdxDisplay.SetAlignment(wui.AlignCenter)
-	orderBookIdxEntry = createNewEditLine(entryXPos, orderBookIdxYPos, displayEntryWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
+	orderBookBtnWidth := 30
+	orderBookLeftBtn = createNewButton("-", displayXPos, orderBookIdxYPos, orderBookBtnWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
+	orderBookLeftBtn.SetOnClick(func() {
+		if orderBookIdx > 0 {
+			orderBookIdx--
+			orderBookIdxDisplay.SetText(strconv.Itoa(orderBookIdx))
+		}
+	})
+	orderBookRightBtn = createNewButton("+", entryXPos+10, orderBookIdxYPos, orderBookBtnWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
+	orderBookRightBtn.SetOnClick(func() {
+		if orderBookIdx < 5 {
+			orderBookIdx++
+			orderBookIdxDisplay.SetText(strconv.Itoa(orderBookIdx))
+		}
+	})
 
 	commandYPos := 225
 	commandXPos := 15
