@@ -35,7 +35,7 @@ var (
 	quantityDP    int
 	orderBookIdx  int = 0
 	leverage      float64
-	tradeFactor   float64 = 0.05
+	tradeFactor   float64 = 0.03
 	closingFactor float64 = 1
 
 	useTradeFactor   bool = true
@@ -187,20 +187,20 @@ func closePosition() {
 			quantity := math.Abs(shared_functions.Round(positionAmtFloat*closingFactor, quantityDP))
 			quantityStr := floatToString(quantity)
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("SELL").Type("LIMIT").TimeInForce("GTC").
-				Quantity(quantityStr).Price(closingPrice).Do(context.Background())
+				Quantity(quantityStr).Price(closingPrice).ReduceOnly(true).Do(context.Background())
 		} else {
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("SELL").Type("LIMIT").TimeInForce("GTC").
-				Quantity(closingAmt).Price(closingPrice).Do(context.Background())
+				Quantity(closingAmt).Price(closingPrice).ReduceOnly(true).Do(context.Background())
 		}
 	} else {
 		if useClosingFactor {
 			quantity := math.Abs(shared_functions.Round(positionAmtFloat*closingFactor, quantityDP))
 			quantityStr := floatToString(quantity)
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("BUY").Type("LIMIT").TimeInForce("GTC").
-				Quantity(quantityStr).Price(closingPrice).Do(context.Background())
+				Quantity(quantityStr).Price(closingPrice).ReduceOnly(true).Do(context.Background())
 		} else {
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("BUY").Type("LIMIT").TimeInForce("GTC").
-				Quantity(closingAmt).Price(closingPrice).Do(context.Background())
+				Quantity(closingAmt).Price(closingPrice).ReduceOnly(true).Do(context.Background())
 		}
 	}
 }
@@ -256,7 +256,7 @@ func runCommand() {
 		}
 		closingFactorEntry.SetText("")
 	} else if specificPriceEntry.HasFocus() && specificPriceEntry.Text() != "" {
-		if specificPriceEntry.Text() == "re" {
+		if _, strconvErr := strconv.ParseFloat(specificPriceEntry.Text(), 64); strconvErr != nil {
 			useSpecificPrice = false
 			specificPriceLabel.SetText("Specific Price")
 		} else {

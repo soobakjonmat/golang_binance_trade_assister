@@ -22,4 +22,4 @@ To change closing mode to:
 - Closing Factor - Enter number between [0, 1]
 - Closing Amount - Enter number between (1, inf)
 
-To change the specific price mode to order book price, enter 're'
+To change the specific price mode to order book price, enter any non-number
