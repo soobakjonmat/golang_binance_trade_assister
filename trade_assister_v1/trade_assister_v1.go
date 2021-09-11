@@ -248,7 +248,8 @@ func runCommand() {
 		}
 		closingFactorEntry.SetText("")
 	} else if specificPriceEntry.HasFocus() && specificPriceEntry.Text() != "" {
-		if _, strconvErr := strconv.ParseFloat(specificPriceEntry.Text(), 64); strconvErr != nil {
+		_, strconvErr := strconv.ParseFloat(specificPriceEntry.Text(), 64)
+		if strconvErr != nil {
 			useSpecificPrice = false
 			specificPriceLabel.SetText("Specific Price")
 		} else {
@@ -517,7 +518,11 @@ func main() {
 	}
 	balanceBeforeStr, _ := sheet.GetCellValue(credentials.SheetName, fmt.Sprint("B", targetIndex))
 	additionalDeposit, _ := sheet.GetCellValue(credentials.SheetName, fmt.Sprint("E", targetIndex+1))
-	balanceBefore = shared_functions.StringToFloat(balanceBeforeStr) + shared_functions.StringToFloat(additionalDeposit)
+	if additionalDeposit != "" {
+		balanceBefore = shared_functions.StringToFloat(balanceBeforeStr) + shared_functions.StringToFloat(additionalDeposit)
+	} else {
+		balanceBefore = shared_functions.StringToFloat(balanceBeforeStr)
+	}
 
 	window = wui.NewWindow()
 	window.SetTitle("Trade Assister")
