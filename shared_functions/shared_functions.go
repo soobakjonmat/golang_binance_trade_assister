@@ -3,6 +3,7 @@ package shared_functions
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"sort"
 	"strconv"
@@ -10,6 +11,23 @@ import (
 
 	"github.com/adshao/go-binance/v2"
 )
+
+func HandleError(err error) {
+	if err != nil {
+		log.Panicln(err)
+	}
+}
+
+func StringToFloat(str string) float64 {
+	num, err := strconv.ParseFloat(str, 64)
+	HandleError(err)
+	return num
+}
+
+func FloatToString(num float64) string {
+	str := strconv.FormatFloat(num, 'f', -1, 64)
+	return str
+}
 
 func Round(num float64, precision int) float64 {
 	multiplier := math.Pow10(precision)
@@ -20,15 +38,15 @@ func TestRuntime(repeatNum int, precision int, params ...interface{}) {
 	var timeSlice []float64
 	for i := 0; i < repeatNum; i++ {
 		startTime := time.Now()
-		fmt.Printf("Loop %v\n", i)
+		fmt.Println("Loop ", i)
 
-		test := params[0].(func(*binance.Client))
-		test(params[1].(*binance.Client))
+		testFunc := params[0].(func())
+		testFunc()
 
 		timeSecond := float64(time.Since(startTime)) / float64(time.Second)
 		timeRounded := Round(timeSecond, precision)
 		timeSlice = append(timeSlice, timeRounded)
-		fmt.Printf("Time taken: %v\n", timeRounded)
+		fmt.Println("Time taken: ", timeRounded)
 	}
 	sort.Float64s(timeSlice)
 	var medianTime float64
@@ -38,7 +56,7 @@ func TestRuntime(repeatNum int, precision int, params ...interface{}) {
 	} else {
 		medianTime = timeSlice[(sliceLength-1)/2]
 	}
-	fmt.Printf("Median time: %v\n", medianTime)
+	fmt.Println("Median time: ", medianTime)
 }
 
 func MakeTestOrder(client *binance.Client) {
