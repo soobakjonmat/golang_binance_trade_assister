@@ -94,21 +94,26 @@ var (
 
 func enterLong() {
 	var enteringPrice string
+	priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
+	shared_functions.HandleError(err)
+	currentPrice := priceList[0].Price
 	if useSpecificPrice {
 		enteringPrice = specificPriceLabel.Text()
 	} else {
 		if orderBookIdx == 0 {
-			priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
-			shared_functions.HandleError(err)
-			enteringPrice = priceList[0].Price
+			enteringPrice = currentPrice
 		} else {
 			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
 			shared_functions.HandleError(err)
 			enteringPrice = orderBook.Bids[orderBookIdx-1].Price
 		}
 	}
+	enteringPriceFloat := shared_functions.StringToFloat(enteringPrice)
+	if enteringPrice > currentPrice {
+		fmt.Println("Order rejected: The buying price is higher than the current price.")
+		return
+	}
 	if useTradeFactor {
-		enteringPriceFloat := shared_functions.StringToFloat(enteringPrice)
 		accountInfo, err := client.NewGetAccountService().Do(context.Background())
 		shared_functions.HandleError(err)
 		balance := accountInfo.Assets[fiatIndex].WalletBalance
@@ -125,21 +130,26 @@ func enterLong() {
 
 func enterShort() {
 	var enteringPrice string
+	priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
+	shared_functions.HandleError(err)
+	currentPrice := priceList[0].Price
 	if useSpecificPrice {
 		enteringPrice = specificPriceLabel.Text()
 	} else {
 		if orderBookIdx == 0 {
-			priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
-			shared_functions.HandleError(err)
-			enteringPrice = priceList[0].Price
+			enteringPrice = currentPrice
 		} else {
 			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
 			shared_functions.HandleError(err)
 			enteringPrice = orderBook.Asks[orderBookIdx-1].Price
 		}
 	}
+	enteringPriceFloat := shared_functions.StringToFloat(enteringPrice)
+	if enteringPrice < currentPrice {
+		fmt.Println("Order rejected: The selling price is lower than the current price.")
+		return
+	}
 	if useTradeFactor {
-		enteringPriceFloat := shared_functions.StringToFloat(enteringPrice)
 		accountInfo, err := client.NewGetAccountService().Do(context.Background())
 		shared_functions.HandleError(err)
 		balance := accountInfo.Assets[fiatIndex].WalletBalance
@@ -160,18 +170,19 @@ func closePosition() {
 	shared_functions.HandleError(err)
 	positionAmtFloat := shared_functions.StringToFloat(positionRisk[0].PositionAmt)
 
-	orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+	priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
 	shared_functions.HandleError(err)
+	currentPrice := priceList[0].Price
 
 	var closingPrice string
 	if useSpecificPrice {
 		closingPrice = specificPriceLabel.Text()
 	} else {
 		if orderBookIdx == 0 {
-			priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
-			shared_functions.HandleError(err)
-			closingPrice = priceList[0].Price
+			closingPrice = currentPrice
 		} else {
+			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+			shared_functions.HandleError(err)
 			if positionAmtFloat > 0 {
 				closingPrice = orderBook.Asks[orderBookIdx-1].Price
 			} else {
@@ -180,6 +191,10 @@ func closePosition() {
 		}
 	}
 	if positionAmtFloat > 0 {
+		if closingPrice < currentPrice {
+			fmt.Println("Order rejected: The selling (closing) price is lower than the current price.")
+			return
+		}
 		if useClosingFactor {
 			quantity := math.Abs(shared_functions.Round(positionAmtFloat*closingFactor, quantityDP))
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("SELL").Type("LIMIT").TimeInForce("GTC").
@@ -189,6 +204,10 @@ func closePosition() {
 				Quantity(closingAmt).Price(closingPrice).ReduceOnly(true).Do(context.Background())
 		}
 	} else {
+		if closingPrice > currentPrice {
+			fmt.Println("Order rejected: The buying (closing) price is higher than the current price.")
+			return
+		}
 		if useClosingFactor {
 			quantity := math.Abs(shared_functions.Round(positionAmtFloat*closingFactor, quantityDP))
 			client.NewCreateOrderService().Symbol(cryptoFullname).Side("BUY").Type("LIMIT").TimeInForce("GTC").
@@ -560,7 +579,7 @@ func main() {
 	finishingProfit := shared_functions.Round((totalBalance/balanceBefore-1)*100, 2)
 	if isInitialized && initialProfit != finishingProfit {
 		fmt.Println("Recording Spent Time")
-		timeSpent := int(time.Since(startTime) / time.Second)
+		timeSpent := int(time.Since(startTime) / time.Minute)
 		recordedTimeStr, _ := sheet.GetCellValue(credentials.SheetName, "G2")
 		recordedTime, _ := strconv.Atoi(recordedTimeStr)
 		totalTimeSpent := timeSpent + recordedTime
