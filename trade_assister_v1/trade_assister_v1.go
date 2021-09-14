@@ -97,6 +97,7 @@ func enterLong() {
 	priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
 	shared_functions.HandleError(err)
 	currentPrice := priceList[0].Price
+	currentPriceFloat := shared_functions.StringToFloat(currentPrice)
 	if useSpecificPrice {
 		enteringPrice = specificPriceLabel.Text()
 	} else {
@@ -109,7 +110,7 @@ func enterLong() {
 		}
 	}
 	enteringPriceFloat := shared_functions.StringToFloat(enteringPrice)
-	if enteringPrice > currentPrice {
+	if enteringPriceFloat > currentPriceFloat {
 		fmt.Println("Order rejected: The buying price is higher than the current price.")
 		return
 	}
@@ -133,6 +134,7 @@ func enterShort() {
 	priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
 	shared_functions.HandleError(err)
 	currentPrice := priceList[0].Price
+	currentPriceFloat := shared_functions.StringToFloat(currentPrice)
 	if useSpecificPrice {
 		enteringPrice = specificPriceLabel.Text()
 	} else {
@@ -145,7 +147,7 @@ func enterShort() {
 		}
 	}
 	enteringPriceFloat := shared_functions.StringToFloat(enteringPrice)
-	if enteringPrice < currentPrice {
+	if enteringPriceFloat < currentPriceFloat {
 		fmt.Println("Order rejected: The selling price is lower than the current price.")
 		return
 	}
@@ -173,6 +175,7 @@ func closePosition() {
 	priceList, err := client.NewListPricesService().Symbol(cryptoFullname).Do(context.Background())
 	shared_functions.HandleError(err)
 	currentPrice := priceList[0].Price
+	currentPriceFloat := shared_functions.StringToFloat(currentPrice)
 
 	var closingPrice string
 	if useSpecificPrice {
@@ -190,8 +193,9 @@ func closePosition() {
 			}
 		}
 	}
+	closingPriceFloat := shared_functions.StringToFloat(closingPrice)
 	if positionAmtFloat > 0 {
-		if closingPrice < currentPrice {
+		if closingPriceFloat < currentPriceFloat {
 			fmt.Println("Order rejected: The selling (closing) price is lower than the current price.")
 			return
 		}
@@ -204,7 +208,7 @@ func closePosition() {
 				Quantity(closingAmt).Price(closingPrice).ReduceOnly(true).Do(context.Background())
 		}
 	} else {
-		if closingPrice > currentPrice {
+		if closingPriceFloat > currentPriceFloat {
 			fmt.Println("Order rejected: The buying (closing) price is higher than the current price.")
 			return
 		}
