@@ -35,7 +35,7 @@ var (
 	quantityDP    int
 	orderBookIdx  int = 0
 	leverage      float64
-	tradeFactor   float64 = 0.03
+	tradeFactor   float64 = 0.02
 	closingFactor float64 = 1
 
 	useTradeFactor   bool = true
@@ -78,6 +78,7 @@ var (
 
 	// Bid: Buy
 	// Ask: Sell
+	orderBookLimit      = 10
 	orderBookIdxDisplay *wui.Label
 	orderBookLeftBtn    *wui.Button
 	orderBookRightBtn   *wui.Button
@@ -104,7 +105,7 @@ func enterLong() {
 		if orderBookIdx == 0 {
 			enteringPrice = currentPrice
 		} else {
-			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(orderBookLimit).Do(context.Background())
 			shared_functions.HandleError(err)
 			enteringPrice = orderBook.Bids[orderBookIdx-1].Price
 		}
@@ -141,7 +142,7 @@ func enterShort() {
 		if orderBookIdx == 0 {
 			enteringPrice = currentPrice
 		} else {
-			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(orderBookLimit).Do(context.Background())
 			shared_functions.HandleError(err)
 			enteringPrice = orderBook.Asks[orderBookIdx-1].Price
 		}
@@ -184,7 +185,7 @@ func closePosition() {
 		if orderBookIdx == 0 {
 			closingPrice = currentPrice
 		} else {
-			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(5).Do(context.Background())
+			orderBook, err := client.NewDepthService().Symbol(cryptoFullname).Limit(orderBookLimit).Do(context.Background())
 			shared_functions.HandleError(err)
 			if positionAmtFloat > 0 {
 				closingPrice = orderBook.Asks[orderBookIdx-1].Price
@@ -370,7 +371,7 @@ func initialize() {
 	symbolLabel.SetAlignment(wui.AlignCenter)
 	symbolLabel.SetX(getCenterXPos(symbolLabel))
 
-	overallProfitLabel = createNewLabel("Overall Profit: 0.00%", 0, 38, 200, HEIGHT_BIG, BINANCE_FONT_BIG)
+	overallProfitLabel = createNewLabel("Overall Profit: 0.00%", 0, 38, 260, HEIGHT_BIG, BINANCE_FONT_BIG)
 	overallProfitLabel.SetX(getCenterXPos(overallProfitLabel))
 	overallProfitLabel.SetAlignment(wui.AlignCenter)
 
@@ -421,7 +422,7 @@ func initialize() {
 	})
 	orderBookRightBtn = createNewButton("+", entryXPos+10, orderBookIdxYPos, orderBookBtnWidth, HEIGHT_TINY, BINANCE_FONT_TINY)
 	orderBookRightBtn.SetOnClick(func() {
-		if orderBookIdx < 5 {
+		if orderBookIdx < orderBookLimit {
 			orderBookIdx++
 			orderBookIdxDisplay.SetText(strconv.Itoa(orderBookIdx))
 		}
@@ -443,7 +444,7 @@ func initialize() {
 	window.SetShortcut(runCommand, wui.KeyReturn)
 }
 
-func getNewService() {
+func getNewInfo() {
 	for {
 		acc, err := client.NewGetAccountService().Do(context.Background())
 		shared_functions.HandleError(err)
@@ -509,11 +510,19 @@ func updateInfo() {
 
 func startUpdatingInfo() {
 	for {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		if isInitialized {
-			go getNewService()
-			time.Sleep(1 * time.Second)
+			acc, err := client.NewGetAccountService().Do(context.Background())
+			shared_functions.HandleError(err)
+			accountInfo = acc
+
+			po, err := client.NewGetPositionRiskService().Symbol(cryptoFullname).Do(context.Background())
+			shared_functions.HandleError(err)
+			positionInfo = po
+			positionAmtStr := positionInfo[0].PositionAmt
+			positionAmt = shared_functions.StringToFloat(positionAmtStr)
 			go updateInfo()
+			go getNewInfo()
 			break
 		}
 	}
@@ -530,19 +539,28 @@ func main() {
 
 	go startUpdatingInfo()
 
+	currentTimeStr := time.Now().String()
+	currentDate := strings.Split(currentTimeStr, " ")[0]
+
 	sheet, _ := excelize.OpenFile(credentials.ExcelFilePath)
 	cols, _ := sheet.GetCols(credentials.SheetName)
-	targetIndex := 0
-	for idx, rowCell := range cols[0] {
-		if rowCell == "" {
-			targetIndex = idx
+
+	var balanceBeforeStr string
+	var additionalDepositStr string
+
+	for idx, cellValue := range cols[0] {
+		if cellValue == currentDate {
+			balanceBeforeStr, _ = sheet.GetCellValue(credentials.SheetName, fmt.Sprint("B", idx))
+			additionalDepositStr, _ = sheet.GetCellValue(credentials.SheetName, fmt.Sprint("E", idx+1))
+			break
+		} else if cellValue == "" {
+			balanceBeforeStr, _ = sheet.GetCellValue(credentials.SheetName, fmt.Sprint("B", idx))
+			additionalDepositStr, _ = sheet.GetCellValue(credentials.SheetName, fmt.Sprint("E", idx+1))
 			break
 		}
 	}
-	balanceBeforeStr, _ := sheet.GetCellValue(credentials.SheetName, fmt.Sprint("B", targetIndex))
-	additionalDeposit, _ := sheet.GetCellValue(credentials.SheetName, fmt.Sprint("E", targetIndex+1))
-	if additionalDeposit != "" {
-		balanceBefore = shared_functions.StringToFloat(balanceBeforeStr) + shared_functions.StringToFloat(additionalDeposit)
+	if additionalDepositStr != "" {
+		balanceBefore = shared_functions.StringToFloat(balanceBeforeStr) + shared_functions.StringToFloat(additionalDepositStr)
 	} else {
 		balanceBefore = shared_functions.StringToFloat(balanceBeforeStr)
 	}
@@ -582,12 +600,32 @@ func main() {
 	totalBalance := shared_functions.Round(shared_functions.StringToFloat(totalbalanceStr), 2)
 	finishingProfit := shared_functions.Round((totalBalance/balanceBefore-1)*100, 2)
 	if isInitialized && initialProfit != finishingProfit {
-		fmt.Println("Recording Spent Time")
 		timeSpent := int(time.Since(startTime) / time.Minute)
-		recordedTimeStr, _ := sheet.GetCellValue(credentials.SheetName, "G2")
-		recordedTime, _ := strconv.Atoi(recordedTimeStr)
-		totalTimeSpent := timeSpent + recordedTime
-		sheet.SetCellValue(credentials.SheetName, "G2", totalTimeSpent)
+		cols, _ := sheet.GetCols(credentials.SheetName)
+		for idx, cellValue := range cols[0] {
+			if cellValue == currentDate {
+				rowNum := idx + 1
+				cellFAxis := fmt.Sprint("F", rowNum)
+				recordedTimeStr, _ := sheet.GetCellValue(credentials.SheetName, cellFAxis)
+				recordedTime, _ := strconv.Atoi(recordedTimeStr)
+				totalTimeSpent := timeSpent + recordedTime
+				sheet.SetCellFormula(credentials.SheetName, cellFAxis, fmt.Sprint("=", totalTimeSpent))
+				break
+			} else if cellValue == "" {
+				rowNum := idx + 1
+				cellAAxis := fmt.Sprint("A", rowNum)
+				dateStyleNum, _ := sheet.GetCellStyle(credentials.SheetName, "A3")
+				sheet.SetCellStyle(credentials.SheetName, cellAAxis, cellAAxis, dateStyleNum)
+				sheet.SetCellValue(credentials.SheetName, cellAAxis, currentDate)
+				cellFAxis := fmt.Sprint("F", rowNum)
+				recordedTimeStr, _ := sheet.GetCellValue(credentials.SheetName, cellFAxis)
+				recordedTime, _ := strconv.Atoi(recordedTimeStr)
+				totalTimeSpent := timeSpent + recordedTime
+				sheet.SetCellFormula(credentials.SheetName, cellFAxis, fmt.Sprint("=", totalTimeSpent))
+				break
+			}
+		}
 		sheet.Save()
+		fmt.Println("Spent Time Recorded")
 	}
 }

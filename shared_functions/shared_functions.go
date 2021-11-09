@@ -14,7 +14,8 @@ import (
 
 func HandleError(err error) {
 	if err != nil {
-		log.Panicln(err)
+		fmt.Printf("%v", err)
+		log.Println(err)
 	}
 }
 
