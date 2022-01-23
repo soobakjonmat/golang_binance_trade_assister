@@ -1,7 +1,7 @@
 # Binance Futures Trade Assister
 
 ## Foreword
-This application is an assister. Not to be used alone. Use with binance.com or binance desktop app.
+This application is made for personal usage.
 
 ## Instruction
 Use v1. v2 is currently on development. It has a problem where the app gets laggy and eventually stops responding.
