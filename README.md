@@ -1,2 +1,2 @@
-# Binance Futures Trade Assister
+# Binance Trade Assister
 Under development
