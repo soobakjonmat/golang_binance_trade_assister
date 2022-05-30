@@ -1,2 +1,3 @@
 # Binance Trade Assister
-Under development
+
+This app is no longer maintained.
